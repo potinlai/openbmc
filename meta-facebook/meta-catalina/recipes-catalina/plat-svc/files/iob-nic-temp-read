@@ -1,0 +1,181 @@
+#!/bin/bash
+
+MAX_RETRY=10
+RETRY_DELAY_SEC=1
+LAST_HOST_READY="$(gpioget $(gpiofind host0-ready))"
+
+declare -A MCTP_BUS_EID_LIST=(
+  [0,0]=10 [0,1]=90
+  [1,0]=15 [1,1]=91
+  [2,0]=24 [2,1]=92
+  [3,0]=26 [3,1]=93
+  [4,0]=36 [4,1]=94
+  [5,0]=38 [5,1]=95
+)
+
+retry_command() {
+    command="$1"
+    retries=0
+    while [ $retries -lt $MAX_RETRY ]; do
+        if bash -c "$command"; then
+            return 0
+        else
+            retries=$((retries + 1))
+            echo "Retry $retries/$MAX_RETRY: Command failed. Retrying in $RETRY_DELAY_SEC seconds..."
+            sleep $RETRY_DELAY_SEC
+        fi
+    done
+    return 1
+}
+
+remove_eid()
+{
+  EID=$1
+  if mapper get-service /au/com/codeconstruct/mctp1/networks/1/endpoints/${EID} 2>/dev/null; then
+    busctl call au.com.codeconstruct.MCTP1 /au/com/codeconstruct/mctp1/networks/1/endpoints/${EID} au.com.codeconstruct.MCTP.Endpoint1 Remove
+  fi
+}
+
+setup_eid()
+{
+  MCTP_INTF=$1
+  MCTP_EID=$2
+
+  CMD="busctl call au.com.codeconstruct.MCTP1 /au/com/codeconstruct/mctp1/interfaces/${MCTP_INTF} au.com.codeconstruct.MCTP.BusOwner1 AssignEndpointStatic ayy 1 0x32 ${MCTP_EID}"
+  echo $CMD
+
+  CUR_RETRY=0
+  while [ $CUR_RETRY -lt $MAX_RETRY ]
+  do
+     CUR_RETRY=$((CUR_RETRY+1))
+     if busctl call au.com.codeconstruct.MCTP1 /au/com/codeconstruct/mctp1/interfaces/${MCTP_INTF} au.com.codeconstruct.MCTP.BusOwner1 AssignEndpointStatic ayy 1 0x32 ${MCTP_EID}; then
+         break
+     else
+         echo ""
+         echo "Set EID:${MCTP_EID} at INTF:${MCTP_INTF} failed. Retry $CUR_RETRY/$MAX_RETRY"
+         sleep "$RETRY_DELAY_SEC"
+     fi
+  done
+
+  return 0
+}
+
+get_osfp_temp_by_eid()
+{
+  EID=$1
+  PLDMTOOL_OUT="$(pldmtool platform GetSensorReading -i 8 -r 0 -m ${EID})"
+  if echo "$PLDMTOOL_OUT" | jq 'has("presentReading")' | grep -q true; then 
+    echo "$PLDMTOOL_OUT" | jq '.presentReading'
+    return 0
+  else
+    return 1
+  fi
+}
+
+get_nic_temp_by_eid()
+{
+  EID=$1
+  PLDMTOOL_OUT="$(pldmtool platform GetSensorReading -i 1 -r 0 -m ${EID})"
+  if echo "$PLDMTOOL_OUT" | jq 'has("presentReading")' | grep -q true; then 
+    echo "$PLDMTOOL_OUT" | jq '.presentReading'
+    return 0
+  else
+    return 1
+  fi
+}
+
+update_osfp_temp_sensor_value()
+{
+  SENSOR_NAME=$1
+  EID=$2
+  if ! SENSOR_VAL="$(get_osfp_temp_by_eid ${EID})"; then
+    return 1
+  fi
+  echo "EID $EID, OSFP Temp: $SENSOR_VAL"
+  busctl set-property xyz.openbmc_project.ExternalSensor /xyz/openbmc_project/sensors/temperature/${SENSOR_NAME} xyz.openbmc_project.Sensor.Value Value d ${SENSOR_VAL}
+}
+
+update_nic_temp_sensor_value()
+{
+  SENSOR_NAME=$1
+  EID=$2
+  if ! SENSOR_VAL="$(get_nic_temp_by_eid ${EID})"; then
+    return 1
+  fi
+  echo "EID $EID, NIC Temp: $SENSOR_VAL"
+  busctl set-property xyz.openbmc_project.ExternalSensor /xyz/openbmc_project/sensors/temperature/${SENSOR_NAME} xyz.openbmc_project.Sensor.Value Value d ${SENSOR_VAL}
+}
+
+
+# Stop PLDMD
+systemctl stop pldmd
+
+# Remove exist EID
+remove_eid 92
+remove_eid 93
+remove_eid 94
+remove_eid 95
+
+# Disconnect I2C MUX
+i2ctransfer -y -f 0 w1@0x71 0x00; sleep 0.5
+i2ctransfer -y -f 0 w1@0x75 0x00; sleep 0.5
+
+# Setup EID
+if [ "$LAST_HOST_READY" = "1" ]; then
+  # setup_eid mctpi2c10 90
+  # setup_eid mctpi2c15 91
+
+  i2ctransfer -y -f 0 w1@0x71 0x01; sleep 0.5
+  setup_eid mctpi2c24 92
+  setup_eid mctpi2c26 93
+  i2ctransfer -y -f 0 w1@0x71 0x00; sleep 0.5
+  
+  i2ctransfer -y -f 0 w1@0x75 0x01; sleep 0.5
+  setup_eid mctpi2c36 94
+  setup_eid mctpi2c38 95
+  i2ctransfer -y -f 0 w1@0x75 0x00; sleep 0.5
+fi
+
+while true
+do
+  HOST_READY="$(gpioget $(gpiofind host0-ready))"
+  if [ "$HOST_READY" != "$LAST_HOST_READY" ]; then
+    if [ "$HOST_READY" = "1" ]; then
+      i2ctransfer -y -f 0 w1@0x71 0x01; sleep 0.5
+      setup_eid mctpi2c24 92
+      setup_eid mctpi2c26 93
+      i2ctransfer -y -f 0 w1@0x71 0x00; sleep 0.5
+      
+      i2ctransfer -y -f 0 w1@0x75 0x01; sleep 0.5
+      setup_eid mctpi2c36 94
+      setup_eid mctpi2c38 95
+      i2ctransfer -y -f 0 w1@0x75 0x00; sleep 0.5
+    else
+      remove_eid 92
+      remove_eid 93
+      remove_eid 94
+      remove_eid 95
+    fi
+    LAST_HOST_READY="$HOST_READY"
+  fi
+
+  if [ "$LAST_HOST_READY" = "1" ]; then
+    i2ctransfer -y -f 0 w1@0x71 0x01; sleep 0.5
+    update_osfp_temp_sensor_value IOB0_NIC0_OSFP_TEMP_C 92
+    update_nic_temp_sensor_value IOB0_NIC0_TEMP_C 92
+    update_osfp_temp_sensor_value IOB0_NIC1_OSFP_TEMP_C 93
+    update_nic_temp_sensor_value IOB0_NIC1_TEMP_C 93
+    i2ctransfer -y -f 0 w1@0x71 0x00; sleep 0.5
+
+    i2ctransfer -y -f 0 w1@0x75 0x01; sleep 0.5
+    update_osfp_temp_sensor_value IOB1_NIC0_OSFP_TEMP_C 94
+    update_nic_temp_sensor_value IOB1_NIC0_TEMP_C 94
+    update_osfp_temp_sensor_value IOB1_NIC1_OSFP_TEMP_C 95
+    update_nic_temp_sensor_value IOB1_NIC1_TEMP_C 95
+    i2ctransfer -y -f 0 w1@0x75 0x00; sleep 0.5
+  fi
+
+  sleep 1
+done
+
+exit 0

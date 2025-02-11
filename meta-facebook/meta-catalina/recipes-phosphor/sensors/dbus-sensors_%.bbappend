@@ -8,6 +8,7 @@ PACKAGECONFIG = " \
     psusensor \
     nvmesensor \
     fansensor \
+    external \
 "
 
 SYSTEMD_OVERRIDE:${PN}:append = "\

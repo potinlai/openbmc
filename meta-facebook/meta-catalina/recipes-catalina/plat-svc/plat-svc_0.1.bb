@@ -14,11 +14,14 @@ SRC_URI += " \
     file://catalina-sys-init.service \
     file://catalina-early-sys-init \
     file://standby-power-enable \
+    file://iob-nic-temp-read \
+    file://iob-nic-temp-read.service \
     "
 
 SYSTEMD_PACKAGES = "${PN}"
 SYSTEMD_SERVICE:${PN}:append = " \
     catalina-sys-init.service \
+    iob-nic-temp-read.service \
     "
 
 do_install() {
@@ -26,4 +29,5 @@ do_install() {
     install -d ${CATALINA_LIBEXECDIR}
     install -m 0755 ${UNPACKDIR}/catalina-early-sys-init ${CATALINA_LIBEXECDIR}
     install -m 0755 ${UNPACKDIR}/standby-power-enable ${CATALINA_LIBEXECDIR}
+    install -m 0755 ${UNPACKDIR}/iob-nic-temp-read ${CATALINA_LIBEXECDIR}
 }
