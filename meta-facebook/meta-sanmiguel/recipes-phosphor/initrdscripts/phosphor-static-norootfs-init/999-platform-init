@@ -1,0 +1,17 @@
+#!/bin/sh
+
+
+
+
+#==================================================================
+# Workaround (Need to be removed)
+#==================================================================
+# Set eth0 mac address
+ip link set dev eth0 down
+ip link set dev eth0 address 3C:6D:66:87:DA:D4
+ip link set dev eth0 up
+
+
+
+
+exit 0
