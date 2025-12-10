@@ -1,0 +1,12 @@
+[
+	{
+		"Name": "CPU-Boot-Done",
+		"LineName": "B0_M0_CPU_BOOT_COMPLETE_3V3-I",
+		"EventMon": "BOTH",
+		"Targets": {
+			"FALLING": ["cpu-boot-done-deassert.service"],
+			"RISING": ["cpu-boot-done-assert.service"]
+		},
+		"Continue": true
+	}
+]
