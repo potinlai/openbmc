@@ -1,0 +1,204 @@
+#!/bin/bash
+# shellcheck source=meta-facebook/recipes-fb/obmc_functions/files/fb-common-functions
+source /usr/libexec/fb-common-functions
+
+GPIO_HIGH=1
+GPIO_LOW=0
+
+wait_gpio_value()
+{
+    local net_name=$1
+    local expd_val=$2
+    local max_retries=$3
+    local delay_secs=$4
+
+
+    local gpio_val=0
+    local trycnt=1
+
+    until [[ $gpio_val -gt 0 || $trycnt -gt $max_retries ]]
+    do
+        gpio_val=$(get_gpio "$net_name")
+        rc=$?
+        if [[ $rc -ne 0 ]]; then
+            err_msg="Unable to read $net_name"
+            echo "$err_msg"
+            return 1
+        fi
+        if [[ $gpio_val -eq $expd_val ]]; then
+            return 0
+        fi
+        sleep "$delay_secs"
+        ((trycnt++))
+    done
+
+    err_msg="wait_gpio_value failed, gpio_val=$gpio_val,  exp_val=$expd_val"
+    echo "$err_msg"
+    return 1
+}
+
+bind_gpio_expanders()
+{
+    bind_i2c_device pca953x 1-0020 3
+    bind_i2c_device pca953x 1-0021 3
+
+    bind_i2c_device pca953x 2-0020 3
+    bind_i2c_device pca953x 2-0021 3
+
+    bind_i2c_device pca953x 7-0020 3
+    bind_i2c_device pca953x 7-0021 3
+}
+
+hmc_bypass()
+{
+    if [ "$(get_gpio "HMC_PRSNT_R-I")" -eq 1 ];then
+        echo "HMC is present, disabling HMC I2C_MGMT1 bypass"
+        set_gpio "BMC_HMC_MUX_SEL-O" "$GPIO_HIGH"
+    else
+        echo "HMC is not present, setting HMC I2C_MGMT1 bypass"
+        set_gpio "BMC_HMC_MUX_SEL-O" "$GPIO_LOW"
+    fi
+}
+
+#===============================================================================
+# Start Here
+#===============================================================================
+
+# Initialize GPIO out state
+if [ "$(get_gpio "B0_M0_STBY_POWER_PG-I")" -eq 0 ];then
+    set_gpio "GLOBAL_WP_BMC-O" "$GPIO_LOW"
+    set_gpio "HMC_RST_R_L-O" "$GPIO_LOW"
+    # Active low (????????)
+    # only in Parsec bmc_ready.sh
+    set_gpio "PDB_12V_EN_N_R-O" "$GPIO_HIGH"
+    sleep 1
+fi
+
+
+# Bind PDB IOX
+bind_i2c_device pca953x 9-0020 3
+# for Parsec EB2
+bind_i2c_device pca953x 9-0075 3
+
+
+# Currently owned & asserted by standby-power-regulator, 
+set_gpio "HMC_STBY_POWER_EN-O" "$GPIO_HIGH"
+
+
+# # Active low (????????)
+# # only in Parsec bmc_ready.sh
+# set_gpio "PDB_12V_EN_N_R-O" "$GPIO_HIGH"
+# sleep 1
+
+
+# This turns on STBY power to the PDB
+# Enables standby power to HPM Board 0 and 1, CPX modules, and N/S NIC.
+set_gpio "STBY_POWER_EN-O" "$GPIO_HIGH"
+
+
+# Wait for standby power good
+if ! wait_gpio_value "STBY_POWER_PG-I" 1 20 1; then
+    err_msg="wait_standby_pwr BMC failed, exiting w/ failure"
+    echo $err_msg
+    exit 1
+fi
+
+
+# Pull the HMC Out of Reset.
+set_gpio "HMC_RST_R_L-O" "$GPIO_HIGH"
+
+
+# Set RUN_POWER_EN for M.2
+# Active low (????????)
+# only in Parsec bmc_ready.sh
+set_gpio "PDB_12V_EN_N_R-O" "$GPIO_LOW"
+
+
+# No VR PDB available for bring up
+# if ! wait_gpio_value "PWBY_PWR_OK-I" 1 20 1; then
+#     err_msg="wait_standby_pwr PDB failed, exiting w/ failure"
+#     echo $err_msg
+#     exit 1
+# fi
+
+
+# Check HMC present and set HMC bypass
+hmc_bypass
+
+# Bind IO Expander driver after STBY_POWER
+bind_gpio_expanders
+
+
+HPM_BOARDS=("B0_M0" "B1_M0")
+
+# Wait for HPM STBY_POWER_PG Assertions (default 20 seconds)
+TOTAL_FAILURE=0
+for BOARD_ID in "${HPM_BOARDS[@]}"; do
+    GPIO_NAME="${BOARD_ID}_STBY_POWER_PG-I"
+    
+    if ! wait_gpio_value "$GPIO_NAME" 1 20 1; then
+        ERROR_MESSAGE="${GPIO_NAME} failed to assert after 20 seconds. Exiting w/ failure."        
+        echo "$ERROR_MESSAGE"
+        TOTAL_FAILURE=1
+    fi
+done
+
+if [[ $TOTAL_FAILURE -ne 0 ]]; then
+    exit 1
+fi
+
+echo "All HPM board Standby Power Good assertions successful."
+
+
+# Wait for HPM HPM_MCU_OK assertions (default 10 seconds)
+TOTAL_FAILURE=0
+for BOARD_ID in "${HPM_BOARDS[@]}"; do
+    GPIO_NAME="${BOARD_ID}_HPM_MCU_OK-I"
+    
+    if ! wait_gpio_value "$GPIO_NAME" 1 10 1; then
+        ERROR_MESSAGE="${GPIO_NAME} failed to assert after 10 seconds. Exiting w/ failure."        
+        echo "$ERROR_MESSAGE"
+        TOTAL_FAILURE=1
+    fi
+done
+
+if [[ $TOTAL_FAILURE -ne 0 ]]; then
+    exit 1
+fi
+
+echo "All HPM board MCU OK assertions successful."
+
+
+# Wait for HPM CPLD_READY assertions (default 10 seconds)
+TOTAL_FAILURE=0
+for BOARD_ID in "${HPM_BOARDS[@]}"; do
+    GPIO_NAME="${BOARD_ID}_CPLD_READY-I"
+    
+    if ! wait_gpio_value "$GPIO_NAME" 1 10 1; then
+        ERROR_MESSAGE="${GPIO_NAME} failed to assert after 10 seconds. Exiting w/ failure."        
+        echo "$ERROR_MESSAGE"
+        TOTAL_FAILURE=1
+    fi
+done
+
+if [[ $TOTAL_FAILURE -ne 0 ]]; then
+    exit 1
+fi
+
+echo "All HPM board CPLD Ready assertions successful."
+
+
+# Workaround: The USB_HUB needs to be reset once while AC ON.
+if [[ ! -c "/dev/ttyUSB0" ]]; then
+    echo "resetting USB_HUB0 on board 0"
+    set_gpio "B0_M0_USB_HUB0_RST_L-O" "$GPIO_LOW"
+    set_gpio "B0_M0_USB_HUB0_RST_L-O" "$GPIO_HIGH"
+fi
+
+if [[ ! -c "/dev/ttyUSB4" ]]; then
+    echo "resetting USB_HUB0 on board 1"
+    set_gpio "B1_M0_USB_HUB0_RST_L-O" "$GPIO_LOW"
+    set_gpio "B1_M0_USB_HUB0_RST_L-O" "$GPIO_HIGH"
+fi
+
+exit 0
