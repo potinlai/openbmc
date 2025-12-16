@@ -6,6 +6,10 @@ source /usr/libexec/fb-common-functions
 GPIO_HIGH=1
 GPIO_LOW=0
 
+VR_HW=0
+PARSEC_HW=1
+
+PDB_RUN_PWR_PG_DELAY_SEC="1"
 CPU_RESET_DELAY_SEC="0.2"
 SHUTDOWN_FORCE_DELAY_SEC="0.1"
 
@@ -135,6 +139,106 @@ chassis_power_status()
     fi
 }
 
+detect_hw_type()
+{
+    local hw_type
+
+    if [ -d "/sys/bus/i2c/drivers/pca953x/9-0020" ]; then
+        hw_type="$VR_HW"
+    elif [ -d "/sys/bus/i2c/drivers/pca953x/9-0075" ]; then
+        hw_type="$PARSEC_HW"
+    else
+        # Unknow type, return VR_HW by default
+        hw_type="$VR_HW"
+    fi
+
+    echo "$hw_type"
+}
+
+pdb_run_pwr_set_n_check()
+{
+    local hw_type
+    local gpio_run_pwr_pg
+    local gpio_run_pwr_en
+    local gpio_val
+
+    hw_type="$(detect_hw_type)"
+
+    # Get PDB run power good value
+    if [[ $hw_type -eq $VR_HW ]]; then
+        gpio_run_pwr_pg="MAIN_PWR_OK-I"
+        gpio_run_pwr_en="MAIN_PWR_EN-O"
+    elif [[ $hw_type -eq $PARSEC_HW ]]; then
+        gpio_run_pwr_pg="PDB_12V_PG_R-I"
+        gpio_run_pwr_en="PDB_12V_EN_N_R-O"
+    else
+        return 1
+    fi
+
+    # Set PDB run power enable
+    if [[ $hw_type -eq $VR_HW ]]; then
+        set_gpio "$gpio_run_pwr_en" "$GPIO_HIGH"
+    elif [[ $hw_type -eq $PARSEC_HW ]]; then
+        set_gpio "$gpio_run_pwr_en" "$GPIO_LOW"
+    fi
+
+    sleep "$PDB_RUN_PWR_PG_DELAY_SEC"
+
+    # Check PDB run power good
+    if [[ "$(get_gpio "$gpio_run_pwr_pg")" -eq "$GPIO_LOW" ]];then
+        echo "ERROR: $gpio_run_pwr_pg failed to assert"
+
+        # Clean up run power enable
+        if [[ $hw_type -eq $VR_HW ]]; then
+            set_gpio "$gpio_run_pwr_en" "$GPIO_LOW"
+        elif [[ $hw_type -eq $PARSEC_HW ]]; then
+            set_gpio "$gpio_run_pwr_en" "$GPIO_HIGH"
+        fi
+        return 1
+    fi
+
+    return 0
+}
+
+pdb_run_pwr_release_n_check()
+{
+    local hw_type
+    local gpio_run_pwr_pg
+    local gpio_run_pwr_en
+    local gpio_val
+
+    hw_type="$(detect_hw_type)"
+
+    # Get PDB run power good value
+    if [[ $hw_type -eq $VR_HW ]]; then
+        gpio_run_pwr_pg="MAIN_PWR_OK-I"
+        gpio_run_pwr_en="MAIN_PWR_EN-O"
+    elif [[ $hw_type -eq $PARSEC_HW ]]; then
+        gpio_run_pwr_pg="PDB_12V_PG_R-I"
+        gpio_run_pwr_en="PDB_12V_EN_N_R-O"
+    else
+        return 1
+    fi
+
+    # Set PDB run power disable
+    if [[ $hw_type -eq $VR_HW ]]; then
+        set_gpio "$gpio_run_pwr_en" "$GPIO_LOW"
+    elif [[ $hw_type -eq $PARSEC_HW ]]; then
+        set_gpio "$gpio_run_pwr_en" "$GPIO_HIGH"
+    fi
+
+    sleep "$PDB_RUN_PWR_PG_DELAY_SEC"
+
+    # Check PDB run power good
+    if [[ "$(get_gpio "$gpio_run_pwr_pg")" -eq "$GPIO_HIGH" ]];then
+        echo "ERROR: $gpio_run_pwr_pg failed to deassert"
+        return 1
+    fi
+
+    return 0
+}
+
+
 cpu_reset_set_n_check()
 {
     # Set CPUs reset and check
@@ -241,14 +345,22 @@ host_power_on()
 {
     echo "Power On Host"
 
+    local hw_type
+    hw_type="$(detect_hw_type)"
+
     # Check Host Power Status
     if is_host_power_on; then
         echo "Host is already powered on"
         return 0
     fi
 
-    # Enable PDB 12V
-    set_gpio "$out_pdb_12v_en_n" "$GPIO_LOW"
+    # # Enable PDB 12V
+    # set_gpio "$out_pdb_12v_en_n" "$GPIO_LOW"
+
+    # Set PDB run power
+    if ! pdb_run_pwr_set_n_check; then
+        return 1
+    fi
 
     # Set CPUs reset and check
     if ! cpu_reset_set_n_check; then
@@ -260,8 +372,18 @@ host_power_on()
     # Enable USB Power
     set_gpio "$out_usb_pwr_en" "$GPIO_HIGH"
 
+    # Enable boot driver power
+    if [[ $hw_type -eq $VR_HW ]]; then
+        set_gpio "E1S_PWR_EN" "$GPIO_HIGH"
+        set_gpio "BMC_SSD0_RST_L" "$GPIO_HIGH"
+    fi
+
     # Set RUN_POWER_EN, wait RUN_POWER_PG assert, 10s timeout
     if ! run_pwr_set_n_check; then
+        if [[ $hw_type -eq $VR_HW ]]; then
+            set_gpio "MAIN_PWR_EN-O" "$GPIO_LOW"
+            sleep "$PDB_RUN_PWR_PG_DELAY_SEC"
+        fi
         set_gpio "B0_M0_${out_pre_sys_rst_n}" "$GPIO_HIGH"
         set_gpio "B1_M0_${out_pre_sys_rst_n}" "$GPIO_HIGH"
         set_gpio "B0_M0_${out_run_pwr_en}" "$GPIO_LOW"
@@ -282,6 +404,11 @@ host_power_on()
 host_force_power_off()
 {
     echo "Force Power Off Host"
+
+    local failed=0
+    local hw_type
+
+    hw_type="$(detect_hw_type)"
 
     # Disable PDB 12V
     set_gpio "$out_pdb_12v_en_n" "$GPIO_HIGH"
@@ -308,18 +435,34 @@ host_force_power_off()
     # Disable USB Power
     set_gpio "$out_usb_pwr_en" "$GPIO_LOW"
 
+    # Disable boot driver power
+    if [[ $hw_type -eq $VR_HW ]]; then
+        set_gpio "E1S_PWR_EN" "$GPIO_LOW"
+        set_gpio "BMC_SSD0_RST_L" "$GPIO_LOW"
+    fi
+
     # Release RUN_POWER_EN, wait RUN_POWER_PG deassert, 10s timeout
     if ! run_pwr_release_n_check; then
         set_gpio "B0_M0_${out_pre_sys_rst_n}" "$GPIO_HIGH"
         set_gpio "B1_M0_${out_pre_sys_rst_n}" "$GPIO_HIGH"
         set_gpio "B0_M0_${out_shdn_force_n}" "$GPIO_HIGH"
-        return 1
+        failed=1
+    fi
+
+    if ! pdb_run_pwr_release_n_check; then
+        failed=1
     fi
 
     # Clean up
     set_gpio "B0_M0_${out_pre_sys_rst_n}" "$GPIO_HIGH"
     set_gpio "B1_M0_${out_pre_sys_rst_n}" "$GPIO_HIGH"
     set_gpio "B0_M0_${out_shdn_force_n}" "$GPIO_HIGH"
+
+    if [[ $failed -eq 1 ]]; then
+        echo "Force Power Off Host Failed"
+        return 1
+    fi
+
     echo "Force Power Off Host Successfully"
     return 0
 }
@@ -327,6 +470,11 @@ host_force_power_off()
 host_graceful_power_off()
 {
     echo "Graceful Power Off Host"
+
+    local failed=0
+    local hw_type
+
+    hw_type="$(detect_hw_type)"
 
     # Check Host Power Status
     if is_host_power_off; then
@@ -351,18 +499,34 @@ host_graceful_power_off()
     # Disable USB Power
     set_gpio "$out_usb_pwr_en" "$GPIO_LOW"
 
+    # Disable boot driver power
+    if [[ $hw_type -eq $VR_HW ]]; then
+        set_gpio "E1S_PWR_EN" "$GPIO_LOW"
+        set_gpio "BMC_SSD0_RST_L" "$GPIO_LOW"
+    fi
+
     # Release RUN_POWER_EN, wait RUN_POWER_PG deassert, 10s timeout
     if ! run_pwr_release_n_check; then
         set_gpio "B0_M0_${out_pre_sys_rst_n}" "$GPIO_HIGH"
         set_gpio "B1_M0_${out_pre_sys_rst_n}" "$GPIO_HIGH"
         set_gpio "B0_M0_${out_shdn_req_n}" "$GPIO_HIGH"
-        return 1
+        failed=1
+    fi
+
+    if ! pdb_run_pwr_release_n_check; then
+        failed=1
     fi
 
     # Clean up
     set_gpio "B0_M0_${out_pre_sys_rst_n}" "$GPIO_HIGH"
     set_gpio "B1_M0_${out_pre_sys_rst_n}" "$GPIO_HIGH"
     set_gpio "B0_M0_${out_shdn_req_n}" "$GPIO_HIGH"
+
+    if [[ $failed -eq 1 ]]; then
+        echo "Graceful Power Off Host Failed"
+        return 1
+    fi
+
     echo "Graceful Power Off Host Successfully"
     return 0
 }
