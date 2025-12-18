@@ -1,2 +1,13 @@
-   # All AST2700 based devmem hacks
-   echo "AST2700 eSPI init"
+#!/bin/sh
+
+ESPI_CH2_CTRL="0x14c05300"
+
+# Ensure /dev/mem exists
+[ -c /dev/mem ] || /bin/mknod /dev/mem c 1 1
+
+# eSPI init
+#echo "AST2700 eSPI init"
+#VAL=$(/sbin/devmem "$ESPI_CH2_CTRL")
+#/sbin/devmem "$ESPI_CH2_CTRL" 32 $((VAL | 0x10))
+
+exit 0
