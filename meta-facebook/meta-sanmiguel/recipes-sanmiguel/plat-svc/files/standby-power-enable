@@ -37,6 +37,16 @@ wait_gpio_value()
     return 1
 }
 
+bmc_set_initial_gpio_out()
+{
+    echo "Setting GPIO Initial State"
+    set_gpio "GLOBAL_WP_BMC-O" "$GPIO_LOW"
+    set_gpio "HMC_RST_R_L-O" "$GPIO_LOW"
+
+    set_gpio "PDB_12V_EN_N_R-O" "$GPIO_HIGH"
+    sleep 1
+}
+
 bind_gpio_expanders()
 {
     bind_i2c_device pca953x 1-0020 3
@@ -60,67 +70,50 @@ hmc_bypass()
     fi
 }
 
+is_vr_pdb_present()
+{
+    if [ -d "/sys/bus/i2c/drivers/pca953x/9-0020" ]; then
+        return 0
+    fi
+    return 1
+}
+
 #===============================================================================
 # Start Here
 #===============================================================================
 
 # Initialize GPIO out state
 if [ "$(get_gpio "B0_M0_STBY_POWER_PG-I")" -eq 0 ];then
-    set_gpio "GLOBAL_WP_BMC-O" "$GPIO_LOW"
-    set_gpio "HMC_RST_R_L-O" "$GPIO_LOW"
-    # Active low (????????)
-    # only in Parsec bmc_ready.sh
-    set_gpio "PDB_12V_EN_N_R-O" "$GPIO_HIGH"
-    sleep 1
+    bmc_set_initial_gpio_out
 fi
-
 
 # Bind PDB IOX
 bind_i2c_device pca953x 9-0020 3
 # for Parsec EB2
 bind_i2c_device pca953x 9-0075 3
 
-
-# Currently owned & asserted by standby-power-regulator, 
-set_gpio "HMC_STBY_POWER_EN-O" "$GPIO_HIGH"
-
-
-# # Active low (????????)
-# # only in Parsec bmc_ready.sh
-# set_gpio "PDB_12V_EN_N_R-O" "$GPIO_HIGH"
-# sleep 1
-
-
 # This turns on STBY power to the PDB
 # Enables standby power to HPM Board 0 and 1, CPX modules, and N/S NIC.
 set_gpio "STBY_POWER_EN-O" "$GPIO_HIGH"
 
-
 # Wait for standby power good
 if ! wait_gpio_value "STBY_POWER_PG-I" 1 20 1; then
-    err_msg="wait_standby_pwr BMC failed, exiting w/ failure"
+    err_msg="wait BMC STBY_POWER_PG-I failed, exiting w/ failure"
     echo $err_msg
     exit 1
 fi
 
-
 # Pull the HMC Out of Reset.
 set_gpio "HMC_RST_R_L-O" "$GPIO_HIGH"
 
-
-# Set RUN_POWER_EN for M.2
-# Active low (????????)
-# only in Parsec bmc_ready.sh
-set_gpio "PDB_12V_EN_N_R-O" "$GPIO_LOW"
-
-
 # No VR PDB available for bring up
-# if ! wait_gpio_value "PWBY_PWR_OK-I" 1 20 1; then
-#     err_msg="wait_standby_pwr PDB failed, exiting w/ failure"
-#     echo $err_msg
-#     exit 1
-# fi
-
+if is_vr_pdb_present; then
+    if ! wait_gpio_value "STBY_PWR_OK-I" 1 20 1; then
+        err_msg="wait PDB STBY_PWR_OK-I failed, exiting w/ failure"
+        echo $err_msg
+        exit 1
+    fi
+fi
 
 # Check HMC present and set HMC bypass
 hmc_bypass
