@@ -31,6 +31,66 @@ in_shdn_ok_n="CPU_SHDN_OK_L-I"
 in_cpu_rst_n="CPU_RST_L-I"
 in_run_pwr_pg="RUN_POWER_PG-I"
 
+plat_get_gpio() {
+    local net_name="$1"
+
+    case "$net_name" in
+        "B0_M0_STBY_POWER_PG-I")
+            get_ioexp_gpio 2 0x20 1
+            ;;
+        "B1_M0_STBY_POWER_PG-I")
+            get_ioexp_gpio 7 0x20 1
+            ;;
+        "B0_M0_RUN_POWER_PG-I")
+            get_ioexp_gpio 2 0x20 9
+            ;;
+        "B1_M0_RUN_POWER_PG-I")
+            get_ioexp_gpio 7 0x20 9
+            ;;
+        "B0_M0_CPU_SHDN_OK_L-I")
+            get_ioexp_gpio 2 0x20 12
+            ;;
+        "B1_M0_CPU_SHDN_OK_L-I")
+            get_ioexp_gpio 7 0x20 12
+            ;;
+        "MAIN_PWR_OK-I")
+            get_ioexp_gpio 9 0x20 6
+            ;;
+        "PDB_12V_PG_R-I")
+            get_ioexp_gpio 9 0x75 7
+            ;;
+        *)
+            get_gpio "$net_name"
+            ;;
+    esac
+}
+
+get_ioexp_gpio()
+{
+    local bus="$1"
+    local addr="$2"
+    local pin_num="$3"
+    local byte_offset=$((pin_num / 8))
+    local bit_offset=$((pin_num % 8))
+    local byte_val
+    local bit_val
+
+    if [[ -z "$bus" || -z "$addr" || -z "$pin_num" ]]; then
+        echo "Error: Missing required arguments." >&2
+        return 1
+    fi
+
+    if ! byte_val=$(i2cget -y -f "$bus" "$addr" "$byte_offset" b); then
+        echo "Error: i2cget failed for bus $bus, address $addr, offset $byte_offset" >&2
+        return 2
+    fi
+
+    bit_val=$(( (byte_val >> bit_offset) & 0x01 ))
+    echo "$bit_val"
+    return 0
+}
+
+
 wait_gpios_value()
 {
     local expd_val=$1           # Expected value (e.g., 1)
@@ -54,11 +114,11 @@ wait_gpios_value()
         
         # Iterate through all input GPIO names
         for net_name in "${net_names[@]}"; do
-            gpio_val=$(get_gpio "$net_name")
+            gpio_val=$(plat_get_gpio "$net_name")
             rc=$?
 
             if [[ $rc -ne 0 ]]; then
-                echo "Error: Unable to read GPIO $net_name (get_gpio returned $rc)."
+                echo "Error: Unable to read GPIO $net_name (plat_get_gpio returned $rc)."
                 return 1
             fi
 
@@ -129,11 +189,11 @@ chassis_power_on()
 
 chassis_power_status()
 {
-    if [[ "$(get_gpio "STBY_POWER_PG-I")" -eq 0 ]];then
+    if [[ "$(plat_get_gpio "STBY_POWER_PG-I")" -eq 0 ]];then
         echo "off"
-    elif [[ "$(get_gpio "B0_M0_STBY_POWER_PG-I")" -eq 0 ]];then
+    elif [[ "$(plat_get_gpio "B0_M0_STBY_POWER_PG-I")" -eq 0 ]];then
         echo "off"
-    elif [[ "$(get_gpio "B1_M0_STBY_POWER_PG-I")" -eq 0 ]];then
+    elif [[ "$(plat_get_gpio "B1_M0_STBY_POWER_PG-I")" -eq 0 ]];then
         echo "off"
     else
         echo "on"
@@ -186,7 +246,7 @@ pdb_run_pwr_set_n_check()
     sleep "$PDB_RUN_PWR_PG_DELAY_SEC"
 
     # Check PDB run power good
-    if [[ "$(get_gpio "$gpio_run_pwr_pg")" -eq "$GPIO_LOW" ]];then
+    if [[ "$(plat_get_gpio "$gpio_run_pwr_pg")" -eq "$GPIO_LOW" ]];then
         echo "ERROR: $gpio_run_pwr_pg failed to assert"
 
         # Clean up run power enable
@@ -231,7 +291,7 @@ pdb_run_pwr_release_n_check()
     sleep "$PDB_RUN_PWR_PG_DELAY_SEC"
 
     # Check PDB run power good
-    if [[ "$(get_gpio "$gpio_run_pwr_pg")" -eq "$GPIO_HIGH" ]];then
+    if [[ "$(plat_get_gpio "$gpio_run_pwr_pg")" -eq "$GPIO_HIGH" ]];then
         echo "ERROR: $gpio_run_pwr_pg failed to deassert"
         return 1
     fi
@@ -248,7 +308,7 @@ cpu_reset_set_n_check()
 
     sleep "$CPU_RESET_DELAY_SEC"
 
-    if [[ "$(get_gpio "$in_cpu_rst_n")" -eq 1 ]]; then
+    if [[ "$(plat_get_gpio "$in_cpu_rst_n")" -eq 1 ]]; then
         echo "ERROR: CPUs failed to enter reset"
         return 1
     fi
@@ -264,7 +324,7 @@ cpu_reset_release_n_check()
 
     sleep "$CPU_RESET_DELAY_SEC"
 
-    if [[ "$(get_gpio "$in_cpu_rst_n")" -eq 0 ]]; then
+    if [[ "$(plat_get_gpio "$in_cpu_rst_n")" -eq 0 ]]; then
         echo "ERROR: CPUs failed to exist reset"
         return 1
     fi
@@ -313,8 +373,8 @@ shutdown_force_n_check()
     set_gpio "B0_M0_${out_shdn_force_n}" "$GPIO_LOW"
     sleep "$SHUTDOWN_FORCE_DELAY_SEC"
 
-    b0_val=$(get_gpio B0_M0_${in_shdn_ok_n})
-    b1_val=$(get_gpio B1_M0_${in_shdn_ok_n})
+    b0_val=$(plat_get_gpio B0_M0_${in_shdn_ok_n})
+    b1_val=$(plat_get_gpio B1_M0_${in_shdn_ok_n})
 
     [[ $b0_val -ne 0 ]] && echo "ERROR: B0_M0_${in_shdn_ok_n} failed to assert"
     [[ $b1_val -ne 0 ]] && echo "ERROR: B1_M0_${in_shdn_ok_n} failed to assert"
@@ -553,8 +613,8 @@ host_power_status()
 {
     local run_pwr_pg="RUN_POWER_PG-I"
 
-    hpm0_pg=$(get_gpio "B0_M0_$run_pwr_pg")
-    hpm1_pg=$(get_gpio "B1_M0_$run_pwr_pg")
+    hpm0_pg=$(plat_get_gpio "B0_M0_$run_pwr_pg")
+    hpm1_pg=$(plat_get_gpio "B1_M0_$run_pwr_pg")
 
     if [[ "$hpm0_pg" -eq 1 ]] && [[ "$hpm1_pg" -eq 1 ]]; then
         echo "on"
