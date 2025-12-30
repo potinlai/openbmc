@@ -7,7 +7,6 @@ echo "initial value for GPIO output pins"
 
 # A0-A7
 # B0-B7
-set_gpio BMC_READY    1
 # D0-D7
 # E0-E7
 # F0-F7
@@ -24,6 +23,52 @@ set_gpio BMC_READY    1
 # T0-T7
 # U0-U7
 # V0-V7
+
+get_gpio FM_BMC_MUX1_SEL
+get_gpio FM_DEBUG_PORT_PRSNT_N
+get_gpio BMC_ID_BEEP_SEL
+get_gpio BMC_JTAG_MUX_SEL
+get_gpio IRQ_PCH_TPM_SPI_LV3_N
+get_gpio USB_OC0_REAR_N
+get_gpio SPI_BMC_BIOS_ROM_IRQ0_N
+get_gpio SMB_BMC_TMP_ALERT
+get_gpio FM_BMC_PROT_LS_EN
+get_gpio AC_PWR_BMC_BTN_N
+get_gpio LED_POSTCODE_0
+get_gpio LED_POSTCODE_1
+get_gpio LED_POSTCODE_4
+get_gpio PSU_SMB_ALERT
+get_gpio FM_TPM_PRSNT_0_N
+get_gpio IRQ_TPM_SPI_N
+get_gpio FM_BOARD_BMC_REV_ID0
+get_gpio FM_BOARD_BMC_REV_ID1
+get_gpio FM_BOARD_BMC_REV_ID2
+
+get_gpio FM_BMC_DBP_PRESENT_N
+get_gpio L2_RST_REQ_OUT
+get_gpio L0L1_RST_REQ_OUT
+get_gpio BMC_I2C0_FPGA_ALERT
+get_gpio UART_MUX_SEL
+get_gpio I2C_MUX_RESET
+get_gpio RSVD_NV_PLT_DETECT
+get_gpio SPI_TPM_INT
+get_gpio CPU_JTAG_MUX_SELECT
+get_gpio THERM_BB_OVERT
+get_gpio THERM_BB_WARN
+get_gpio SPI_BMC_FPGA_INT
+get_gpio CPU_BOOT_DONE
+get_gpio PMBUS_GNT
+get_gpio CHASSIS_PWR_BRK
+get_gpio PCIE_WAKE
+get_gpio PDB_THERM_OVERT
+get_gpio SHDN_REQ
+get_gpio PWR_LED_N
+get_gpio PSU_FW_UPDATING_N
+get_gpio DEBUG_CARD_BYPASS
+get_gpio FM_FLASH_LATCH_N
+get_gpio IOEXP_INT_3V3
+get_gpio SYS_FAULT_LED_N
+get_gpio RUN_POWER_FAULT
 
 # set initial value for IOEXP GPIO output pins
 
@@ -69,5 +114,7 @@ set_gpio HDT_HDR_RESET_R_N 1
 set_gpio FM_SMB_AUTH_MUX_OE_R_N 1
 set_gpio FM_SCM_LED_R_N 1
 set_gpio SGPIO_BMC_READY 1
+
+echo 1 > /sys/class/leds/bmc_ready_noled/brightness
 
 exit 0
