@@ -5,6 +5,7 @@ inherit obmc-phosphor-systemd systemd
 SRC_URI:append = " \
     file://phosphor-multi-gpio-monitor.json \
     file://cpu-boot-done \
+    file://run-power-good \
     "
 
 RDEPENDS:${PN}:append = " bash"
@@ -14,6 +15,8 @@ FILES:${PN} += "${systemd_system_unitdir}/*"
 SYSTEMD_SERVICE:${PN}-monitor += " \
     cpu-boot-done-assert.service \
     cpu-boot-done-deassert.service \
+    run-power-good-assert.service \
+    run-power-good-deassert.service \
     "
 
 do_install:append() {
@@ -27,4 +30,6 @@ do_install:append() {
 
     install -m 0755 ${UNPACKDIR}/cpu-boot-done \
                     ${D}${libexecdir}/${PN}/cpu-boot-done
+    install -m 0755 ${UNPACKDIR}/run-power-good \
+                    ${D}${libexecdir}/${PN}/run-power-good
 }
