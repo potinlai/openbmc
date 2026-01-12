@@ -9,3 +9,13 @@ OBMC_IMAGE_EXTRA_INSTALL:append = " \
 OBMC_IMAGE_EXTRA_INSTALL:append = " \
     phosphor-gpio-monitor \
 "
+
+
+
+
+# TEST
+OBMC_IMAGE_EXTRA_INSTALL:append = " \
+    mdio-tools \
+    dtc \
+"
+
