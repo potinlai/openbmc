@@ -1,6 +1,11 @@
 {
     "gpio_definitions": [
         {
+            "name": "POWER_BUTTON",
+            "line_name": "ID_RST_BTN_BMC_N",
+            "direction": "both"
+        },
+        {
             "name": "HOST_SELECTOR",
             "group_gpio_config": [],
             "max_position": 1,
