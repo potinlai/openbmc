@@ -20,16 +20,6 @@
         "Continue": true
     },
     {
-        "Name": "ID_RST_BTN_BMC_N",
-        "LineName": "ID_RST_BTN_BMC_N",
-        "EventMon": "BOTH",
-        "Targets": {
-            "RISING": ["assert-reset-button.service"],
-            "FALLING": ["deassert-reset-button.service"]
-        },
-        "Continue": true
-    },
-    {
         "Name": "UART_MUX_SEL",
         "LineName": "UART_MUX_SEL",
         "EventMon": "BOTH",
