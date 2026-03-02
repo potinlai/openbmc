@@ -19,11 +19,14 @@ SRC_URI:append = " \
 SRC_URI:append = " \
     file://platform-early-sys-init \
     file://standby-power-enable \
+    file://sync-hmc-datetime \
     "
 
 # services
 SRC_URI:append = " \
     file://platform-sys-init.service \
+    file://sync-hmc-datetime.service \
+    file://sync-hmc-datetime.timer \
     "
 
 SYSTEMD_PACKAGES = "${PN}"
@@ -37,6 +40,7 @@ do_install() {
     install -d ${PLATSVC_LIBEXECDIR}
     install -m 0755 ${UNPACKDIR}/platform-early-sys-init ${PLATSVC_LIBEXECDIR}
     install -m 0755 ${UNPACKDIR}/standby-power-enable ${PLATSVC_LIBEXECDIR}
+    install -m 0755 ${UNPACKDIR}/sync-hmc-datetime ${PLATSVC_LIBEXECDIR}
 
     # install udev rules
     UDEV_RULES_DIR="${D}${sysconfdir}/udev/rules.d"

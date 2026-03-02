@@ -1,0 +1,10 @@
+[Unit]
+Description=Sync HMC DateTime via Redfish
+After=platform-sys-init.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/plat-svc/sync-hmc-datetime
+
+[Install]
+WantedBy=multi-user.target
