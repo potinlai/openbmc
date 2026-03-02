@@ -1,0 +1,10 @@
+[Unit]
+Description=Sync HMC DateTime via Redfish
+After=xyz.openbmc_project.EntityManager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/hmc-datetime-sync/hmc-datetime-sync
+
+[Install]
+WantedBy=multi-user.target
