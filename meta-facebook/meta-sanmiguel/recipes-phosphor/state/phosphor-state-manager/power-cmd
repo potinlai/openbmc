@@ -334,7 +334,7 @@ host_power_on()
         return 1
     fi
 
-    echo "Resetting CX9 SMA to re-enum the CX9 MCTP endpoints..."
+    # Resetting CX9 SMA to re-enum the CX9 MCTP endpoints
     set_gpio "IOB0_MCU_RST_L-O" "$GPIO_HIGH"
     set_gpio "IOB0_GLOBAL_ADDR_L_R-O" "$GPIO_LOW"
     set_gpio "IOB0_GLOBAL_ADDR_U_D-O" "$GPIO_LOW"
@@ -350,6 +350,10 @@ host_power_on()
     set_gpio "IOB3_MCU_RST_L-O" "$GPIO_HIGH"
     set_gpio "IOB3_GLOBAL_ADDR_L_R-O" "$GPIO_HIGH"
     set_gpio "IOB3_GLOBAL_ADDR_U_D-O" "$GPIO_HIGH"
+
+    # Perform BF4 MCU reset toggle
+    set_gpio "BF4_USB_MCU_RST_L" "$GPIO_LOW"
+    set_gpio "BF4_USB_MCU_RST_L" "$GPIO_HIGH"
 
     echo "Power On Host Successfully"
     return 0
