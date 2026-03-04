@@ -8,6 +8,11 @@ declare -A MCTP_INTF_LIST=(
     [0]="mctpi2c13"
     [1]="mcu1u2u1u1"
     [2]="mcu1u2u2u1"
+    [3]="mcu1u2u1u4u1"
+    [4]="mcu1u2u1u3u1"
+    [5]="mcu1u2u2u3u1"
+    [6]="mcu1u2u2u4u1"
+    [7]="mcu1u1u4u1"
 )
 
 is_mctp_interface_exist()
