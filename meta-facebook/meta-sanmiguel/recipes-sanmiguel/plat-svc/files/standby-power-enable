@@ -194,4 +194,12 @@ if [[ ! -c "/dev/ttyUSB4" ]]; then
     set_gpio "B1_M0_USB_HUB0_RST_L-O" "$GPIO_HIGH"
 fi
 
+echo "Wait HMC Ready"
+if ! wait_gpio_value "HMC_READY-I" 1 120 1; then
+    ERROR_MESSAGE="HMC_READY-I failed to assert after 30 seconds."
+    echo "$ERROR_MESSAGE"
+else
+    echo "HMC_READY-I asserted."
+fi
+
 exit 0
