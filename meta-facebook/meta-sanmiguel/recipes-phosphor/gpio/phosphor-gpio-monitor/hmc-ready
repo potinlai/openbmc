@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# Define devices: "bus address"
+DEVICES=(
+    "1 0x50"
+    "1 0x51"
+    "3 0x51"
+)
+
+bind_fru()
+{
+    MAX_RETRIES=3
+    ATTEMPT=1
+
+    while [ $ATTEMPT -le $MAX_RETRIES ]; do
+        echo "--- Attempt $ATTEMPT of $MAX_RETRIES ---"
+        ALL_SUCCESS=true
+
+        for DEV in "${DEVICES[@]}"; do
+            read -r BUS ADDR <<< "$DEV"
+            ADDR_SHORT=${ADDR#0x}
+
+            DEV_DIR="/sys/bus/i2c/devices/i2c-$BUS/$BUS-00$ADDR_SHORT"
+            EEPROM_PATH="$DEV_DIR/eeprom"
+
+            if [ -f "$EEPROM_PATH" ]; then
+                echo "[OK] Bus $BUS Addr $ADDR: EEPROM attribute exists."
+            else
+                ALL_SUCCESS=false
+                echo "[!] Bus $BUS Addr $ADDR: EEPROM attribute missing."
+
+                if [ -d "$DEV_DIR" ]; then
+                    echo "    -> Device folder exists but no eeprom. Deleting device to reset..."
+                    echo "$ADDR" > "/sys/bus/i2c/devices/i2c-$BUS/delete_device" 2>/dev/null
+                    sleep 0.5
+                fi
+
+                echo "    -> Adding device 24c02 to bus $BUS at $ADDR..."
+                echo "24c02" "$ADDR" > "/sys/bus/i2c/devices/i2c-$BUS/new_device" 2>/dev/null
+            fi
+        done
+
+        if [ "$ALL_SUCCESS" = true ]; then
+            echo "Success: All devices are fully initialized."
+            return 0
+        fi
+
+        echo "Round $ATTEMPT incomplete. Waiting 2s..."
+        sleep 2
+        ((ATTEMPT++))
+    done
+
+    echo "Error: Failed to stabilize all EEPROM attributes after $MAX_RETRIES attempts."
+    return 1
+}
+
+STATE="$1"
+
+if [ "$STATE" = "assert" ]; then
+    bind_fru
+    busctl call xyz.openbmc_project.FruDevice /xyz/openbmc_project/FruDevice xyz.openbmc_project.FruDeviceManager ReScanBus q 1
+    busctl call xyz.openbmc_project.FruDevice /xyz/openbmc_project/FruDevice xyz.openbmc_project.FruDeviceManager ReScanBus q 3
+fi
+
+exit 0
