@@ -8,6 +8,7 @@ SRC_URI:append = " \
     file://cpu-boot-done \
     file://cpu-shdn-ok \
     file://gpios-event-logger \
+    file://hmc-ready \
     file://run-power-good \
     file://thermal-event-logger \
     "
@@ -38,6 +39,7 @@ SYSTEMD_SERVICE:${PN}-monitor += " \
     gpios-deassert-log@.service \
     prochot-assert-log@.service \
     prochot-deassert-log@.service \
+    hmc-ready-assert.service \
     run-power-good-assert.service \
     run-power-good-deassert.service \
     thermtrip-assert-log@.service \
@@ -62,6 +64,8 @@ do_install:append() {
                     ${D}${libexecdir}/${PN}/cpu-shdn-ok
     install -m 0755 ${UNPACKDIR}/gpios-event-logger \
                     ${D}${libexecdir}/${PN}/gpios-event-logger
+    install -m 0755 ${UNPACKDIR}/hmc-ready \
+                    ${D}${libexecdir}/${PN}/hmc-ready
     install -m 0755 ${UNPACKDIR}/run-power-good \
                     ${D}${libexecdir}/${PN}/run-power-good
     install -m 0755 ${UNPACKDIR}/thermal-event-logger \
