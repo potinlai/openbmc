@@ -1,0 +1,13 @@
+[Unit]
+Description=nic-snr-read %i
+After=xyz.openbmc_project.EntityManager.service
+After=xyz.openbmc_project.externalsensor.service
+After=mctpd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/plat-svc/nic-snr-read %i
+SyslogIdentifier=nic-snr-read-%i
+
+[Install]
+WantedBy=multi-user.target
