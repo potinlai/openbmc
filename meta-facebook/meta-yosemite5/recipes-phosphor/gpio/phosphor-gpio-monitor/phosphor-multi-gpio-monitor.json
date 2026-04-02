@@ -5,7 +5,25 @@
         "EventMon": "BOTH",
         "Targets": {
             "RISING": ["reset_btn@RISING.service"],
-            "FALLING": ["reset_btn@FALLING.service"]
+            "FALLING": ["reset_btn@FALLING.service", "button-assert@RESET.service"]
+        },
+        "Continue": true
+    },
+    {
+        "Name": "AC_PWR_BMC_BTN_N",
+        "LineName": "AC_PWR_BMC_BTN_N",
+        "EventMon": "BOTH",
+        "Targets": {
+            "FALLING": ["button-assert@AC_POWER.service"]
+        },
+        "Continue": true
+    },
+    {
+        "Name": "PWR_BTN_BMC_N",
+        "LineName": "PWR_BTN_BMC_N",
+        "EventMon": "BOTH",
+        "Targets": {
+            "FALLING": ["button-assert@POWER.service"]
         },
         "Continue": true
     },

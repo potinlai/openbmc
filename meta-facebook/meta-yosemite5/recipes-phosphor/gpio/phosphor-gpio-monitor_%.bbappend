@@ -6,6 +6,8 @@ SRC_URI += "file://phosphor-multi-gpio-monitor.json \
             file://phosphor-multi-gpio-monitor-evt.json \
             file://reset_btn \
             file://reset_btn@.service \
+            file://button-journal-logger \
+            file://button-assert@.service \
             file://multi-gpios-sys-init \
             file://multi-gpios-sys-init.service \
             file://assert-host-ready.service \
@@ -34,6 +36,7 @@ FILES:${PN} += "${systemd_system_unitdir}/*"
 
 SYSTEMD_SERVICE:${PN} += " \
     reset_btn@.service \
+    button-assert@.service \
     multi-gpios-sys-init.service \
     assert-host-ready.service \
     deassert-host-ready.service \
@@ -69,6 +72,7 @@ do_install:append() {
     install -m 0755 ${UNPACKDIR}/smc-event-logger ${D}${libexecdir}/${PN}/
     install -m 0755 ${UNPACKDIR}/assert-power-good-drop ${D}${libexecdir}/${PN}/
     install -m 0755 ${UNPACKDIR}/deassert-power-good-drop ${D}${libexecdir}/${PN}/
+    install -m 0755 ${UNPACKDIR}/button-journal-logger ${D}${libexecdir}/${PN}/
 
     install -d ${D}${systemd_system_unitdir}/phosphor-multi-gpio-monitor.service.d
     install -m 0644 ${UNPACKDIR}/phosphor-multi-gpio-monitor.conf \
