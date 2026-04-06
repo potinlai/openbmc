@@ -25,6 +25,23 @@ set_gpio BMC_READY    1
 # U0-U7
 # V0-V7
 
+get_gpio IRQ_PCH_TPM_SPI_LV3_N
+get_gpio USB_OC0_REAR_N
+get_gpio FM_BMC_PROT_LS_EN
+get_gpio AC_PWR_BMC_BTN_N
+get_gpio LED_POSTCODE_0
+get_gpio LED_POSTCODE_1
+get_gpio LED_POSTCODE_4
+get_gpio IRQ_TPM_SPI_N
+
+get_gpio PSU_SMB_ALERT
+get_gpio FM_TPM_PRSNT_0_N
+get_gpio IOEXP_INT_3V3
+get_gpio FM_BOARD_BMC_REV_ID0
+get_gpio FM_BOARD_BMC_REV_ID1
+get_gpio FM_BOARD_BMC_REV_ID2
+get_gpio RUN_POWER_FAULT
+
 # set initial value for IOEXP GPIO output pins
 
 # MB IOEXP
