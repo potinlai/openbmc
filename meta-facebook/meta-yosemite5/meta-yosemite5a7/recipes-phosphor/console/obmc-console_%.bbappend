@@ -5,7 +5,7 @@ SRC_URI:append = " \
 "
 
 # For BIOS 2A03/older compatibility
-OBMC_SOL_ROUTING = "uart2:uart3 uart3:uart2"
+OBMC_SOL_ROUTING = "uart1:uart2 uart2:uart1"
 
 do_install:append() {
     install -d ${D}${base_libdir}/udev/rules.d/
