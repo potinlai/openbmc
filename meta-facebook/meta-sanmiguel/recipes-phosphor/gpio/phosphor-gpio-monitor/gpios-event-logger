@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# get assert or deassert message
+action=$1
+
+# get some parameters
+GPIO_NAME=$2
+
+# object path
+MSG_ID="$GPIO_NAME gpio $action"
+
+busctl call \
+xyz.openbmc_project.Logging /xyz/openbmc_project/logging \
+xyz.openbmc_project.Logging.Create Create "ssa{ss}" "$MSG_ID" \
+xyz.openbmc_project.Logging.Entry.Level.Error 1 "GPIO" "$GPIO_NAME"
