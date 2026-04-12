@@ -4,6 +4,7 @@ inherit systemd
 
 SRC_URI:append = " \
     file://phosphor-multi-gpio-monitor.json \
+    file://phosphor-multi-gpio-presence.json \
     file://cpu-boot-done \
     file://cpu-shdn-ok \
     file://gpios-event-logger \
@@ -49,6 +50,9 @@ do_install:append() {
 
     install -m 0644 ${UNPACKDIR}/phosphor-multi-gpio-monitor.json \
                     ${D}${datadir}/${PN}/phosphor-multi-gpio-monitor.json
+
+    install -m 0644 ${UNPACKDIR}/phosphor-multi-gpio-presence.json \
+                    ${D}${datadir}/${PN}/phosphor-multi-gpio-presence.json
 
     install -d ${D}${libexecdir}/${PN}
 
